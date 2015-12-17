@@ -1,4 +1,14 @@
 #include "spi.h"
+#include "uart_async.h"
+
+void spiSleep(volatile uint8_t *port, uint8_t pin) {
+  *port |= _BV(pin);
+}
+
+void spiWakeup(volatile uint8_t *port, uint8_t pin) {
+  // uart_write("port="); uart_writelnHEX(port);
+  *port &= ~(_BV(pin));
+}
 
 uint8_t spi_transmit(void) {
   if (spi_script.status > 0) return spi_script.status;

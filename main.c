@@ -42,7 +42,7 @@ uint8_t parse_HEX_string(char* str, uint8_t* result) {
 }
 
 uint8_t writelnHEX(uint8_t* buf, uint8_t size) {
-  PORT_SPI |= _BV(PIN_SCN);
+  spiSleep(&PORT_SPI, PIN_SCN);
   uart_writelnHEXEx(buf, size);
   return 0;  
 }
@@ -64,8 +64,8 @@ void commands_reciver(char* str) {
       _log(ERR_COM_PARSER_PARS_ERR);
       return;
     }
-    
-    PORT_SPI &= ~(_BV(PIN_SCN));
+    spiWakeup(&PORT_SPI, PIN_SCN);
+    //PORT_SPI &= ~(_BV(PIN_SCN));
     spi_script.callBack = &writelnHEX;
     spi_transmit();
   }

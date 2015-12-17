@@ -1,7 +1,8 @@
 #ifndef __SPI_H_
 #define __SPI_H_
-
+#define __AVR_ATmega328P__ 1
 #include <avr/interrupt.h>
+#include <avr/io.h>
 
 #define PORT_SPI PORTB
 #define DDR_SPI DDRB
@@ -27,5 +28,7 @@ struct rec_isp_script {
 
 uint8_t spi_transmit(void);
 void spi_masterInit(void);
+void spiWakeup(volatile uint8_t *port, uint8_t pin);
+void spiSleep(volatile uint8_t *port, uint8_t pin);
 
 #endif
