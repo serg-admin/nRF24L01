@@ -10,6 +10,9 @@
 #define ERR_I2C_BASE2               0xA300
 #define ERR_I2C_BUSY                (ERR_I2C_BASE2 | 0x00)
 
+#define ERR_SPI_BASE                0xA400
+#define ERR_SPI_BUSY                (ERR_SPI_BASE | 0x00)
+
 #define ERR_COM_PARSER_BASE 0xC100
 #define ERR_COM_PARSER_PARS_ERR     (ERR_COM_PARSER_BASE | 0x01)
 #define ERR_COM_PARSER_UNKNOW_COM   (ERR_COM_PARSER_BASE | 0x02)

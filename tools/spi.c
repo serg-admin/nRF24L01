@@ -1,17 +1,33 @@
 #include "spi.h"
 #include "uart_async.h"
 
-void spiSleep(volatile uint8_t *port, uint8_t pin) {
-  *port |= _BV(pin);
-}
+volatile uint8_t *devSSport;
+uint8_t devSSpin;
 
-void spiWakeup(volatile uint8_t *port, uint8_t pin) {
-  // uart_write("port="); uart_writelnHEX(port);
+/**
+ * @brief Ожидает освобождение SPI шины и захватывает ее
+ * @param port Порт для пробуждения SS устройства
+ * @param pin  Пин для пробуждения SS устройства
+ */
+void spiGetBus(volatile uint8_t *port, uint8_t pin) {
+  while (spi_script.status) sleep_mode();
+  cli();
+  spi_script.status = SPI_STATE_BUSY;
+  sei();
   *port &= ~(_BV(pin));
+  devSSport = port;
+  devSSpin  = pin;
 }
 
-uint8_t spi_transmit(void) {
-  if (spi_script.status > 0) return spi_script.status;
+/**
+ * @brief Отмечает SPI шину как свободную
+ */
+void spiSetFree(void) {
+  *devSSport |= _BV(devSSpin);
+  spi_script.status = SPI_STATE_FREE;
+}
+
+uint8_t spiTransmit(void) {
   spi_script.pos = 0;
   SPDR = spi_script.script[spi_script.pos++];
   return 0;
@@ -23,7 +39,7 @@ void spi_masterInit(void) {
   PORT_SPI |= _BV(PIN_SCN); // Переводим SPI Slave в сон.
   /* Enable SPI, Master, set clock rate fck/16 */
   SPCR = _BV(SPE)|(1<<MSTR)|(1<<SPR0) | _BV(SPIE); // Включаем прерывания
-  spi_script.status = ISP_STATE_FREE;
+  spi_script.status = SPI_STATE_FREE;
 }
 
 ISR (SPI_STC_vect) {

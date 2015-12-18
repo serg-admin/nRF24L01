@@ -1,9 +1,18 @@
+#define F_CPU 16000000
+#include <util/delay.h>
 #include <avr/io.h>
 #include "tools/timer16.h"
 #include "tools/uart_async.h"
 #include "tools/error.h"
 #include "tools/pcint.h"
 #include "tools/spi.h"
+
+#define NRF24L01_SCN_DDR DDRB
+#define NRF24L01_SCN_PORT PORTB
+#define NRF24L01_SCN_PIN DDB2
+#define NRF24L01_CE_DDR DDRB
+#define NRF24L01_CE_PORT PORTB
+#define NRF24L01_CE_PIN DDB0
 
 unsigned char hexToCharOne(char c) {
   if ((c > 47) && (c<58)) return c-48;
@@ -28,7 +37,7 @@ uint8_t parse_HEX_string(char* str, uint8_t* result) {
   uint8_t pos = 0;
   uint8_t tmp;
   while((str[pos*2] != 0) && 
-          (pos < ISP_SCRIPT_LEN)) {
+          (pos < SPI_SCRIPT_LEN)) {
       result[pos] = hexToCharOne(str[pos*2]);
       tmp = hexToCharOne(str[pos*2+1]);
       if ((tmp & 0xF0) || (result[pos] & 0xF0)) {
@@ -44,6 +53,7 @@ uint8_t parse_HEX_string(char* str, uint8_t* result) {
 uint8_t writelnHEX(uint8_t* buf, uint8_t size) {
   spiSleep(&PORT_SPI, PIN_SCN);
   uart_writelnHEXEx(buf, size);
+  spi_script.status = SPI_STATE_FREE;
   return 0;  
 }
 
@@ -59,16 +69,61 @@ uint8_t writelnHEX(uint8_t* buf, uint8_t size) {
  */
 void commands_reciver(char* str) {
   if (str[0] == 'S') {
+    cli();
+    if (spi_script.status) {
+      _log(ERR_SPI_BUSY);
+      sei();
+      return;
+    }
+    spi_script.status = SPI_STATE_BUSY;
+    sei();
     spi_script.size = parse_HEX_string(str + 1, spi_script.script);
     if (! spi_script.size) {
       _log(ERR_COM_PARSER_PARS_ERR);
+      spi_script.status = SPI_STATE_FREE;
       return;
     }
-    spiWakeup(&PORT_SPI, PIN_SCN);
-    //PORT_SPI &= ~(_BV(PIN_SCN));
+    spiWakeup(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
     spi_script.callBack = &writelnHEX;
     spi_transmit();
   }
+}
+
+uint8_t nRF24L01_initCallBack(uint8_t* arg, uint8_t size) {
+  spi_script.status = SPI_STATE_FREE;
+  uart_writeln("free");
+  spiSleep(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  return 0;
+}
+
+void nRF24L01_init(void) {
+  while (spi_script.status) sleep_mode();
+  cli();
+  spi_script.status = SPI_STATE_BUSY;
+  sei();
+  spiWakeup(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  // Установка адреса для дефолтного канала приема 
+  // RX_ADDR_P0 - Receive address data pipe 0. 5 Bytes maximum 
+  // length. (LSByte is written first. Write the number of 
+  // bytes defined by SETUP_AW).
+  spi_script.size = parse_HEX_string("2A0000000002", spi_script.script);
+  spi_script.callBack = &nRF24L01_initCallBack;
+  uart_write("begin1 = "); uart_writelnHEX(spi_script.size);
+  spi_transmit();
+  while (spi_script.status) sleep_mode();
+  uart_write("end1");
+  cli();
+  spi_script.status = SPI_STATE_BUSY;
+  sei();
+  spiWakeup(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  // Установка адреса для дефолтного канала передачи 
+  // TX_ADDR - Transmit address. Used for a PTX device only. 
+  // (LSByte is written first) Set RX_ADDR_P0 equal to this address 
+  // to handle automatic acknowledge if this is a PTX device with 
+  // Enhanced ShockBurst™ enabled
+  spi_script.size = parse_HEX_string("300000000002", spi_script.script);
+  spi_script.callBack = &nRF24L01_initCallBack;
+  spi_transmit();
 }
 
 int main(void) {
@@ -81,6 +136,7 @@ int main(void) {
   uart_writeln("Start");
   DDR_SPI |= _BV(DD_SCN);
   PORT_SPI |= _BV(PIN_SCN);
+  nRF24L01_init();
   while(1) {
     sleep_mode();
   }

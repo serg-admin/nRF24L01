@@ -14,12 +14,12 @@
 #define DD_MISO DDB4
 #define DD_SCK  DDB5
 
-#define ISP_SCRIPT_LEN 32
-#define ISP_STATE_FREE 0
-#define ISP_STATE_BUSY 1
+#define SPI_SCRIPT_LEN 32
+#define SPI_STATE_FREE 0
+#define SPI_STATE_BUSY 1
 
 struct rec_isp_script {
-  uint8_t script[ISP_SCRIPT_LEN];
+  uint8_t script[SPI_SCRIPT_LEN];
   uint8_t size;
   uint8_t pos;
   uint8_t status;
