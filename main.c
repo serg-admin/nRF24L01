@@ -7,6 +7,7 @@
 #include "tools/error.h"
 //#include "tools/pcint.h"
 #include "tools/spi.h"
+#include "tools/eeprom.h"
 
 #if defined (__AVR_ATmega128__)
 #  define NRF24L01_SCN_DDR DDRB
@@ -107,10 +108,11 @@ void nRF24L01SendStr(char *str) {
  *  с устройства D1.
  */
 void commands_reciver(char* str) {
+  uint8_t tmp_arr[2];
   struct rec_spi_data *data;
   if ((str[0] == 'S') && (str[1] == 'P') && (str[2] == 'I')) {
     if (spiData.status) {
-      uart_writeln("busy");
+      uart_writeln("SPI busy");
       return;
     }
     data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
@@ -126,6 +128,17 @@ void commands_reciver(char* str) {
   } 
   if ((str[0] == 'S') && (str[1] == 'E') && (str[2] == 'N') && (str[3] == 'D')) {
     nRF24L01SendStr(&str[4]);
+    return;
+  } 
+  if ((str[0] == 'R') && (str[1] == 'O') && (str[2] == 'M') && (str[3] == 'W')) {
+    parse_HEX_string(str + 4, tmp_arr);
+    if (EEPROM_write(tmp_arr[0] * 0xFF + tmp_arr[1], tmp_arr[2])) 
+      uart_writeln("eeprom busy");
+    return;
+  } 
+  if ((str[0] == 'R') && (str[1] == 'O') && (str[2] == 'M') && (str[3] == 'R')) {
+    parse_HEX_string(str + 4, tmp_arr);
+    uart_writelnHEX(EEPROM_read(tmp_arr[0] * 0xFF + tmp_arr[1]));
     return;
   } 
   _log(ERR_COM_PARSER_UNKNOW_COM);
