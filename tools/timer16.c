@@ -5,13 +5,21 @@
 #define TCNT_MIN 3036
 
 //Прерывания компараторов таймера
-#define TIMER1_A_CHECK (TIMSK1 & _BV(OCIE1A))
-#define TIMER1_A_EN TIMSK1 |= _BV(OCIE1A)
-#define TIMER1_A_DIS TIMSK1 &= ~(_BV(OCIE1A))
-#define TIMER1_B_CHECK (TIMSK1 & _BV(OCIE1B))
-#define TIMER1_B_EN TIMSK1 |= _BV(OCIE1B)
-#define TIMER1_B_DIS TIMSK1 &= ~(_BV(OCIE1B))
-
+#if defined (__AVR_ATmega128__)
+#  define TIMER1_A_CHECK (TIMSK & _BV(OCIE1A))
+#  define TIMER1_A_EN TIMSK |= _BV(OCIE1A)
+#  define TIMER1_A_DIS TIMSK &= ~(_BV(OCIE1A))
+#  define TIMER1_B_CHECK (TIMSK & _BV(OCIE1B))
+#  define TIMER1_B_EN TIMSK |= _BV(OCIE1B)
+#  define TIMER1_B_DIS TIMSK &= ~(_BV(OCIE1B))
+#else
+#  define TIMER1_A_CHECK (TIMSK1 & _BV(OCIE1A))
+#  define TIMER1_A_EN TIMSK1 |= _BV(OCIE1A)
+#  define TIMER1_A_DIS TIMSK1 &= ~(_BV(OCIE1A))
+#  define TIMER1_B_CHECK (TIMSK1 & _BV(OCIE1B))
+#  define TIMER1_B_EN TIMSK1 |= _BV(OCIE1B)
+#  define TIMER1_B_DIS TIMSK1 &= ~(_BV(OCIE1B))
+#endif
 struct rec_timerTask {
   void (*func)(uint8_t* params);
   uint8_t* data;
@@ -30,7 +38,11 @@ void timer1PutTask(uint16_t delay, void (*func)(uint8_t*), uint8_t* data) {
       A.data = data;
       delay = TCNT1 + delay;
       if (delay < timer16_start_value) delay += timer16_start_value;
+#if defined (__AVR_ATmega128__)
+      TIFR |= _BV(OCF1A);
+#else
       TIFR1 |= _BV(OCF1A);
+#endif
       OCR1A = delay;
       TIMER1_A_EN;
       return;
@@ -49,13 +61,13 @@ void timer1PutTask(uint16_t delay, void (*func)(uint8_t*), uint8_t* data) {
 }
 
 ISR (TIMER1_COMPA_vect) {
-  A.func(A.data);
   TIMER1_A_DIS;
+  A.func(A.data);
 }
 
 ISR (TIMER1_COMPB_vect) {
-  B.func(B.data);  
   TIMER1_B_DIS;
+  B.func(B.data);  
 }
 
 // Прерывание переполнения таймера
@@ -69,6 +81,7 @@ void timer_init() {
   timer16_start_value = TCNT_MIN;
   // Разрешить светодиод arduino pro mini.
   DDRD |= _BV(DDD5);
+  PORTD |= _BV(PORTD5);
   // Делитель счетчика 256 (CS10=0, CS11=0, CS12=1).
   // 256 * 65536 = 16 777 216 (тактов)
   TCCR1B |= _BV(CS12);
@@ -76,7 +89,11 @@ void timer_init() {
   //TCCR1B |= _BV(CS11);
   //TCCR1B |= _BV(CS10); //Включить для мигания  4 -ре секунды
   // Включить обработчик прерывания переполнения счетчика таймера.
+#if defined (__AVR_ATmega128__)
+  TIMSK = _BV(TOIE1);
+#else
   TIMSK1 = _BV(TOIE1);
+#endif
   // PRR &= ~(_BV(PRTIM1));
   TCNT1 += timer16_start_value;
 }

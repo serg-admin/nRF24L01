@@ -10,7 +10,11 @@
 //#ifndef __UART_ASYNC_H_
 #define __UART_ASYNC_H_
 
-#define FOSC 16000000 // Clock Speed
+#if defined (__AVR_ATmega128__)
+#  define FOSC 8000000 // Clock Speed
+#else
+#  define FOSC 16000000 // Clock Speed
+#endif
 
 //#define BAUD 2400
 #define BAUD 38400

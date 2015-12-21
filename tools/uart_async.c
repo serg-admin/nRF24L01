@@ -10,8 +10,11 @@ unsigned char uart_wPos = 0; // Позиция буфера для записи 
 unsigned char uart_rPos = 0; // Позиция буфера для передачи в порт.
 void (*uart_readln_callback)(char*) = 0;
 
-
+#if defined (__AVR_ATmega128__)
+ISR (USART0_UDRE_vect) {
+#else
 ISR (USART_UDRE_vect) {
+#endif
   cli();
   if (uart_wPos != uart_rPos) {
     UDR0 = uart_buf[uart_rPos++];
@@ -21,8 +24,12 @@ ISR (USART_UDRE_vect) {
 }
 
 // Прерывание - Пришел байт данных.
+#if defined (__AVR_ATmega128__)
+ISR (USART0_RX_vect) {
+#else
 ISR (USART_RX_vect) {
-  PORTB ^= _BV(PINB5);
+#endif
+  //PORTB ^= _BV(PINB5);
   if (uart_readln_callback == 0) return;
   cli();
   while (UCSR0A & _BV(RXC0)) {
@@ -48,7 +55,12 @@ void uart_async_init(void) {
    // Разрешить прием, передачу через порт.
    UCSR0B = _BV(TXEN0) | _BV(RXEN0) | _BV(RXCIE0) ;
    // Устанавливаем скорость порта.
+#if defined (__AVR_ATmega128__)   
+   UBRR0H = (unsigned char)(MYBDIV>>8);
+   UBRR0L = (unsigned char)MYBDIV;
+#else
    UBRR0 = MYBDIV;
+#endif   
    UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
 }
 

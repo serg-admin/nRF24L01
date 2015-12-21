@@ -1,5 +1,7 @@
 programm     = main
 mcu          = atmega328p
+#mcu          = atmega128
+
 optimize     = -Os
 
 source_dirs := . tools
@@ -8,6 +10,7 @@ source_dirs := . tools
 includes           = -I /usr/lib/avr/include/
 
 override compile_flags += -pipe
+override compile_flags += -std=gnu99
 override CFLAGS        = -g -Wall $(optimize) -mmcu=$(mcu) $(includes)
 override LDFLAGS       = -Wl,-Map,$(programm).map
 
@@ -37,5 +40,7 @@ clean:
 
 pro_mini: $(programm).hex
 	avrdude -c arduino -F -P /dev/ttyUSB0 -p $(mcu) -b 57600  -U flash:w:$(programm).hex:i
+lc_studio: $(programm).hex
+	avrdude -c stk500 -F -P /dev/ttyUSB1 -p $(mcu) -U flash:w:$(programm).hex:i
 leonardo: $(programm).hex
 	avrdude -c avr109 -F -P /dev/ttyACM1 -p m32u4 -U flash:w:$(programm).hex:i

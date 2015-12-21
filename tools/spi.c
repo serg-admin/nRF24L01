@@ -1,22 +1,17 @@
 #include "spi.h"
-#include "uart_async.h"
 
+/* Данные для дизактивации текущего устрйства */
 volatile uint8_t *devSSport;
 uint8_t devSSpin;
 
-/**
- * @brief Ожидает освобождение SPI шины и захватывает ее
- * @param port Порт для пробуждения SS устройства
- * @param pin  Пин для пробуждения SS устройства
- */
-void spiGetBus(volatile uint8_t *port, uint8_t pin) {
-  while (spi_script.status) sleep_mode();
-  cli();
-  spi_script.status = SPI_STATE_BUSY;
-  sei();
+struct rec_spi_data* spiGetBus(volatile uint8_t *port, uint8_t pin) {
+  while (spiData.status) sleep_mode();
+  spiData.status = SPI_STATE_BUSY;
   *port &= ~(_BV(pin));
   devSSport = port;
   devSSpin  = pin;
+  spiData.callBack = 0;
+  return &spiData;
 }
 
 /**
@@ -24,29 +19,52 @@ void spiGetBus(volatile uint8_t *port, uint8_t pin) {
  */
 void spiSetFree(void) {
   *devSSport |= _BV(devSSpin);
-  spi_script.status = SPI_STATE_FREE;
+  spiData.status = SPI_STATE_FREE;
+  spiData.callBack = 0;
+  spiData.sendBuff = spiData.reciveBuff;
 }
 
-uint8_t spiTransmit(void) {
-  spi_script.pos = 0;
-  SPDR = spi_script.script[spi_script.pos++];
+uint8_t spiTransmit(uint8_t recive_size) {
+  SPDR = spiData.sendBuff[0];
+  spiData.pos = 1;
+  spiData.reciveSize = recive_size;
   return 0;
 }
 
-void spi_masterInit(void) {
-  /* Set MOSI and SCK output, all others input */
-  DDR_SPI = (1<<DD_MOSI)|(1<<DD_SCK) | _BV(DD_SCN) | _BV(DD_MISO);
-  PORT_SPI |= _BV(PIN_SCN); // Переводим SPI Slave в сон.
-  /* Enable SPI, Master, set clock rate fck/16 */
-  SPCR = _BV(SPE)|(1<<MSTR)|(1<<SPR0) | _BV(SPIE); // Включаем прерывания
-  spi_script.status = SPI_STATE_FREE;
+void spi_init(uint8_t *buff) {
+  // Шина свободна
+  spiData.callBack = 0;
+  spiData.status = SPI_STATE_FREE;
+  spiData.reciveBuff = buff;
+  spiData.sendBuff = spiData.reciveBuff;
+  /* MOSI, MISO  и SCK как выходы */
+  DDR_SPI |= _BV(DD_MOSI) | _BV(DD_SCK) | _BV(DD_SS);//| _BV(DD_MISO);
+  /* Включаем SPI как мастер с частотой fck/16. Активируем прерывание SPI */
+  SPCR = _BV(SPE) | _BV(MSTR) | (1<<SPR0) | _BV(SPIE); 
 }
 
 ISR (SPI_STC_vect) {
-  spi_script.script[spi_script.pos - 1] = SPDR;
-  if (spi_script.pos < spi_script.size) {
-    SPDR = spi_script.script[spi_script.pos++];
-  } else {
-    spi_script.callBack(spi_script.script, spi_script.size);
+//void SIG_SPI( void ) __attribute__ ( ( signal, naked ) );
+//void SPI_STC_vect( void ) {
+  // Збрасываем флаг прерывания
+  uint8_t tmp = SPDR;
+  cli();
+  if (spiData.status != SPI_STATE_FREE) {
+    if ((spiData.pos - 1) < spiData.reciveSize)
+      spiData.reciveBuff[spiData.pos - 1] = tmp;
+    if (spiData.pos < spiData.sendSize) {
+      SPDR = spiData.sendBuff[spiData.pos++];
+    } else {
+      // Размер принимаемых данных больше передаваемых
+      // Для генерации тактов SCK передаем данные
+      if (spiData.pos < spiData.reciveSize) {
+        SPDR = 0;
+      } else {
+        if (spiData.callBack)
+          spiData.callBack(spiData.reciveBuff, spiData.pos);
+        spiSetFree();
+      }
+    }
   }
+  sei();
 }
