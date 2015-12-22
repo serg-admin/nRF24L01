@@ -108,7 +108,7 @@ void nRF24L01SendStr(char *str) {
  *  с устройства D1.
  */
 void commands_reciver(char* str) {
-  uint8_t tmp_arr[2];
+  uint8_t tmp_arr[3];
   struct rec_spi_data *data;
   if ((str[0] == 'S') && (str[1] == 'P') && (str[2] == 'I')) {
     if (spiData.status) {
