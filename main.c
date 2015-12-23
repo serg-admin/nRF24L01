@@ -16,8 +16,8 @@
 #  define NRF24L01_SCN_PIN PORTB0
 #  define NRF24L01_CE_DDR DDRB
 #  define NRF24L01_CE_PORT PORTB
-#  define NRF24L01_CE_PIN PORTB3
-#  define NRF24L01_CE_DDN DDB3
+#  define NRF24L01_CE_PIN PORTB5
+#  define NRF24L01_CE_DDN DDB5
 #else
 #  define NRF24L01_SCN_DDR DDRB
 #  define NRF24L01_SCN_PORT PORTB
@@ -239,7 +239,7 @@ void timerTask(uint8_t *params) {
 int main(void) {
   uint8_t spi_read_buff[32];
   timer_init();
-  timer1PutMainTask(&timerTask, 0);
+  //timer1PutMainTask(&timerTask, 0);
   uart_async_init();
   //pcint_init(0);
   uart_readln(&commands_reciver);
@@ -251,6 +251,7 @@ int main(void) {
   NRF24L01_CE_DDR |= _BV(NRF24L01_CE_DDN);
   NRF24L01_CE_PORT &= ~(_BV(NRF24L01_CE_PIN));
   nRF24L01_init();
+  NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
   while(1) {
     sleep_mode();
   }
