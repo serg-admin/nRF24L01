@@ -12,5 +12,6 @@ uint16_t timer16_start_value;
 
 void timer_init();
 void timer1PutTask(uint16_t delay, void (*func)(uint8_t*), uint8_t* data);
+void timer1PutMainTask(void (*func)(uint8_t*), uint8_t* data);
 
 #endif

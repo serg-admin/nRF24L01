@@ -23,7 +23,7 @@
 struct rec_timerTask {
   void (*func)(uint8_t* params);
   uint8_t* data;
-} A, B;
+} A, B, M;
 
 /**
  * @brief Отложенное выполняет процедуры
@@ -60,6 +60,12 @@ void timer1PutTask(uint16_t delay, void (*func)(uint8_t*), uint8_t* data) {
   }
 }
 
+void timer1PutMainTask(void (*func)(uint8_t*), uint8_t* data) {
+      M.func = func;
+      M.data = data;
+}
+
+
 ISR (TIMER1_COMPA_vect) {
   TIMER1_A_DIS;
   A.func(A.data);
@@ -70,11 +76,17 @@ ISR (TIMER1_COMPB_vect) {
   B.func(B.data);  
 }
 
+uint8_t p = 0;
+
 // Прерывание переполнения таймера
 ISR (TIMER1_OVF_vect) {
   cli();
   ledSw;
   sei();
+  switch (p++) {
+    case 1: if (M.func) M.func(M.data); break;
+  }
+  if (p > 5) p = 0;
 }
 
 void timer_init() {
@@ -96,4 +108,5 @@ void timer_init() {
 #endif
   // PRR &= ~(_BV(PRTIM1));
   TCNT1 += timer16_start_value;
+  M.func = 0;
 }

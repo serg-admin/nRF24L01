@@ -29,6 +29,22 @@
 #  define NRF24L01_CE_DDN DDB1
 #endif
 
+#define NRF24L01_EEPROM 0x0000 //Адрес конфигурации ресивера
+
+struct rec_nRF24L01_conf{
+  uint8_t config; // адресс 0x00
+  uint8_t en_aa; // адресс 0x01
+  uint8_t en_rxaddr; // адресс 0x02
+  uint8_t setup_aw; // адресс 0x03
+  uint8_t setup_retr; // адресс 0x04
+  uint8_t rf_ch; // адресс 0x05
+  uint8_t rf_setup; // адресс 0x06
+  uint8_t rx_addr_p0[3]; // адресс 0x0A
+  uint8_t tx_addr[3]; // адресс 0x10
+  uint8_t rx_pw_p0; // адресс 0x11
+  uint8_t rx_pw_p1; // адресс 0x12
+} nRF24L01_conf;
+
 unsigned char hexToCharOne(char c) {
   if ((c > 47) && (c<58)) return c-48;
   switch(c) {
@@ -76,9 +92,7 @@ void nRF24L01ClearSCN(uint8_t* args) {
 
 uint8_t nRF24L01SendActivate(uint8_t *buff, uint8_t size) {
   NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);  
-  timer1PutTask(1, &nRF24L01ClearSCN, 0);
-  
-  //spiData.status = SPI_STATE_FREE;
+  timer1PutTask(2, &nRF24L01ClearSCN, 0);
   return 0;
 }
 
@@ -144,40 +158,88 @@ void commands_reciver(char* str) {
   _log(ERR_COM_PARSER_UNKNOW_COM);
 }
 
+void nRF24L01LoadConf(struct rec_nRF24L01_conf* rec_conf) {
+  uint16_t addr;
+  uint8_t *buff; 
+  buff = (uint8_t *)rec_conf; 
+  for(addr = NRF24L01_EEPROM; 
+      addr < NRF24L01_EEPROM + sizeof(struct rec_nRF24L01_conf);
+      addr++) {
+    buff[addr - NRF24L01_EEPROM] = EEPROM_read(addr);
+  }
+}
+
+void nRF24L01SetRegister(uint8_t reg, uint8_t b) {
+  struct rec_spi_data *data = 
+      spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  uart_writelnHEXEx(data->reciveBuff, 2);
+  data->sendBuff[0] = reg;
+  data->sendBuff[1] = b;
+  data->sendSize = 2;
+  spiTransmit(2);
+}
+
 void nRF24L01_init(void) {
   struct rec_spi_data *data;
+  nRF24L01LoadConf(&nRF24L01_conf);
+  
+  nRF24L01SetRegister(0x20, nRF24L01_conf.config);
+  nRF24L01SetRegister(0x21, nRF24L01_conf.en_aa);
+  nRF24L01SetRegister(0x22, nRF24L01_conf.en_rxaddr);
+  nRF24L01SetRegister(0x23, nRF24L01_conf.setup_aw);
+  nRF24L01SetRegister(0x24, nRF24L01_conf.setup_retr);
+  nRF24L01SetRegister(0x25, nRF24L01_conf.rf_ch);
+  nRF24L01SetRegister(0x26, nRF24L01_conf.rf_setup);
+  nRF24L01SetRegister(0x31, nRF24L01_conf.rx_pw_p0);
+  nRF24L01SetRegister(0x32, nRF24L01_conf.rx_pw_p1);
+
   // Установка адреса для дефолтного канала приема 
   // RX_ADDR_P0 - Receive address data pipe 0. 5 Bytes maximum 
   // length. (LSByte is written first. Write the number of 
   // bytes defined by SETUP_AW).
   data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  data->sendSize = parse_HEX_string("2A0000000002", data->sendBuff);
+  data->sendBuff[0] = 0x2A;
+  data->sendBuff[1] = nRF24L01_conf.rx_addr_p0[0];
+  data->sendBuff[2] = nRF24L01_conf.rx_addr_p0[1];
+  data->sendBuff[3] = nRF24L01_conf.rx_addr_p0[2];
+  data->sendSize = 4;
   spiTransmit(0);
-  
-  data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  data->sendSize = parse_HEX_string("2B0000000002", data->sendBuff);
-  spiTransmit(0);
-  
+
   // Установка адреса для дефолтного канала передачи 
   // TX_ADDR - Transmit address. Used for a PTX device only. 
   // (LSByte is written first) Set RX_ADDR_P0 equal to this address 
   // to handle automatic acknowledge if this is a PTX device with 
-  // Enhanced ShockBurst™ enabled
+  // Enhanced ShockBurst™ enabled  
   data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  data->sendSize = parse_HEX_string("300000000002", data->sendBuff);
-  spiTransmit(0);
-  
+  data->sendBuff[0] = 0x30;
+  data->sendBuff[1] = nRF24L01_conf.tx_addr[0];
+  data->sendBuff[2] = nRF24L01_conf.tx_addr[1];
+  data->sendBuff[3] = nRF24L01_conf.tx_addr[2];
+  data->sendSize = 4;
+  spiTransmit(4);
+    
   // Включаем трансивер
-  data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  data->sendBuff[0] = 0x20;
-  data->sendBuff[1] = 0x0A;
-  data->sendSize = 2;
-  spiTransmit(0);
+  nRF24L01SetRegister(0x20, 0x0A | nRF24L01_conf.config);
+}
+
+void timerTask(uint8_t *params) {
+  uart_writeln("-");
+  nRF24L01SetRegister(0xE1, 0); // Очистить буфер передачи
+  //uart_writelnHEX(spiData.reciveBuff[0]);
+  nRF24L01SetRegister(0x27, 0xFF); // Збросить прерывания
+  //uart_writelnHEX(spiData.reciveBuff[0]);
+  nRF24L01SetRegister(0xA0, 0x30); // Отправить байт данных
+  nRF24L01SetRegister(0x17, 0x00);
+  nRF24L01SetRegister(0x00, 0x00);
+  nRF24L01SetRegister(0x20, 0x0A | nRF24L01_conf.config);
+  //NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN); 
+  nRF24L01SendActivate(0, 0);
 }
 
 int main(void) {
   uint8_t spi_read_buff[32];
   timer_init();
+  timer1PutMainTask(&timerTask, 0);
   uart_async_init();
   //pcint_init(0);
   uart_readln(&commands_reciver);
