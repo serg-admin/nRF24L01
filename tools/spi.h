@@ -10,7 +10,7 @@
 #define DDR_SPI DDRB
 
 #if defined (__AVR_ATmega128__)
-#  define DD_SS   DDB2
+#  define DD_SS   DDB0
 #  define DD_MOSI DDB2
 #  define DD_MISO DDB3
 #  define DD_SCK  DDB1
