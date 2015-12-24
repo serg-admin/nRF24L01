@@ -148,6 +148,7 @@ void commands_reciver(char* str) {
     parse_HEX_string(str + 4, tmp_arr);
     if (EEPROM_write(tmp_arr[0] * 0xFF + tmp_arr[1], tmp_arr[2])) 
       uart_writeln("eeprom busy");
+    uart_writeln("ok");
     return;
   } 
   if ((str[0] == 'R') && (str[1] == 'O') && (str[2] == 'M') && (str[3] == 'R')) {
@@ -172,7 +173,6 @@ void nRF24L01LoadConf(struct rec_nRF24L01_conf* rec_conf) {
 void nRF24L01SetRegister(uint8_t reg, uint8_t b) {
   struct rec_spi_data *data = 
       spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  uart_writelnHEXEx(data->reciveBuff, 2);
   data->sendBuff[0] = reg;
   data->sendBuff[1] = b;
   data->sendSize = 2;
@@ -223,7 +223,6 @@ void nRF24L01_init(void) {
 }
 
 void timerTask(uint8_t *params) {
-  uart_writeln("-");
   nRF24L01SetRegister(0xE1, 0); // Очистить буфер передачи
   //uart_writelnHEX(spiData.reciveBuff[0]);
   nRF24L01SetRegister(0x27, 0xFF); // Збросить прерывания
@@ -239,7 +238,6 @@ void timerTask(uint8_t *params) {
 int main(void) {
   uint8_t spi_read_buff[32];
   timer_init();
-  //timer1PutMainTask(&timerTask, 0);
   uart_async_init();
   //pcint_init(0);
   uart_readln(&commands_reciver);
@@ -251,6 +249,12 @@ int main(void) {
   NRF24L01_CE_DDR |= _BV(NRF24L01_CE_DDN);
   NRF24L01_CE_PORT &= ~(_BV(NRF24L01_CE_PIN));
   nRF24L01_init();
+  if (nRF24L01_conf.config & 1) {
+    NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
+  } else {
+    timer1PutMainTask(&timerTask, 0);
+  }
+ 
   NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
   while(1) {
     sleep_mode();
