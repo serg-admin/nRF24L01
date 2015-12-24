@@ -40,7 +40,7 @@ while(<DB>) {
     print "name:$name; data: $value\n";
     # Побайтная передача загружаемых данных в порт
     for($i = 0; $i < length($value); $i = $i + 2) {
-      $result_str = sprintf("ROMW%04X" . substr($value, $i, 2), hex $addr);
+      $result_str = sprintf("ROMW%04X" . substr($value, $i, 2), $addr);
       $addr++;
       print "command: $result_str\n";
       print PORT "$result_str\n";
