@@ -8,42 +8,7 @@
 //#include "tools/pcint.h"
 #include "tools/spi.h"
 #include "tools/eeprom.h"
-
-#if defined (__AVR_ATmega128__)
-#  define NRF24L01_SCN_DDR DDRB
-#  define NRF24L01_SCN_PORT PORTB
-#  define NRF24L01_SCN_DDN DDB0
-#  define NRF24L01_SCN_PIN PORTB0
-#  define NRF24L01_CE_DDR DDRB
-#  define NRF24L01_CE_PORT PORTB
-#  define NRF24L01_CE_PIN PORTB5
-#  define NRF24L01_CE_DDN DDB5
-#else
-#  define NRF24L01_SCN_DDR DDRB
-#  define NRF24L01_SCN_PORT PORTB
-#  define NRF24L01_SCN_DDN DDB2
-#  define NRF24L01_SCN_PIN PORTB2
-#  define NRF24L01_CE_DDR DDRB
-#  define NRF24L01_CE_PORT PORTB
-#  define NRF24L01_CE_PIN PORTB1
-#  define NRF24L01_CE_DDN DDB1
-#endif
-
-#define NRF24L01_EEPROM 0x0000 //Адрес конфигурации ресивера
-
-struct rec_nRF24L01_conf{
-  uint8_t config; // адресс 0x00
-  uint8_t en_aa; // адресс 0x01
-  uint8_t en_rxaddr; // адресс 0x02
-  uint8_t setup_aw; // адресс 0x03
-  uint8_t setup_retr; // адресс 0x04
-  uint8_t rf_ch; // адресс 0x05
-  uint8_t rf_setup; // адресс 0x06
-  uint8_t rx_addr_p0[3]; // адресс 0x0A
-  uint8_t tx_addr[3]; // адресс 0x10
-  uint8_t rx_pw_p0; // адресс 0x11
-  uint8_t rx_pw_p1; // адресс 0x12
-} nRF24L01_conf;
+#include "tools/nRf24l01.h"
 
 unsigned char hexToCharOne(char c) {
   if ((c > 47) && (c<58)) return c-48;
@@ -96,9 +61,30 @@ uint8_t nRF24L01SendActivate(uint8_t *buff, uint8_t size) {
   return 0;
 }
 
+uint8_t nRF24L01Sending(uint8_t* buff, uint8_t size) {
+  // Преводим в режим передачи
+  nRF24L01_SET_SEND;
+  return 0;
+}
+
+void nRF24L01Send(uint8_t* buff, uint8_t size) {
+  uint8_t i;
+  struct rec_spi_data *data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  // Команда отправить данные
+  data->reciveBuff[0] = 0xA0;
+  // Фактический размер значащих данных
+  data->reciveBuff[1] = size;
+  for(i = 0; i < size; i++) {
+    data->sendBuff[i+2] = buff[i];
+  }
+  // Размер окна данных в пакете
+  data->sendSize = nRF24L01_conf.rx_pw_p0;
+  data->callBack = &nRF24L01Sending;
+  spiTransmit(0);
+}
+
 void nRF24L01SendStr(char *str) {  
   struct rec_spi_data *data; 
-  //NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
   data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
   data->sendBuff[0] = 0b10100000; // Запись в TX буффер
   data->sendSize = 0;
@@ -170,15 +156,6 @@ void nRF24L01LoadConf(struct rec_nRF24L01_conf* rec_conf) {
   }
 }
 
-void nRF24L01SetRegister(uint8_t reg, uint8_t b) {
-  struct rec_spi_data *data = 
-      spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  data->sendBuff[0] = reg;
-  data->sendBuff[1] = b;
-  data->sendSize = 2;
-  spiTransmit(2);
-}
-
 void nRF24L01_init(void) {
   struct rec_spi_data *data;
   nRF24L01LoadConf(&nRF24L01_conf);
@@ -204,6 +181,14 @@ void nRF24L01_init(void) {
   data->sendBuff[3] = nRF24L01_conf.rx_addr_p0[2];
   data->sendSize = 4;
   spiTransmit(0);
+  
+  data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  data->sendBuff[0] = 0x2B;
+  data->sendBuff[1] = nRF24L01_conf.rx_addr_p1[0];
+  data->sendBuff[2] = nRF24L01_conf.rx_addr_p1[1];
+  data->sendBuff[3] = nRF24L01_conf.rx_addr_p1[2];
+  data->sendSize = 4;
+  spiTransmit(0);
 
   // Установка адреса для дефолтного канала передачи 
   // TX_ADDR - Transmit address. Used for a PTX device only. 
@@ -216,22 +201,18 @@ void nRF24L01_init(void) {
   data->sendBuff[2] = nRF24L01_conf.tx_addr[1];
   data->sendBuff[3] = nRF24L01_conf.tx_addr[2];
   data->sendSize = 4;
-  spiTransmit(4);
+  spiTransmit(0);
     
   // Включаем трансивер
-  nRF24L01SetRegister(0x20, 0x0A | nRF24L01_conf.config);
+  nRF24L01SetRegister(0x20, 0x02 | nRF24L01_conf.config);
+  nRF24L01_UP;
 }
 
 void timerTask(uint8_t *params) {
   nRF24L01SetRegister(0xE1, 0); // Очистить буфер передачи
-  //uart_writelnHEX(spiData.reciveBuff[0]);
   nRF24L01SetRegister(0x27, 0xFF); // Збросить прерывания
-  //uart_writelnHEX(spiData.reciveBuff[0]);
   nRF24L01SetRegister(0xA0, 0x30); // Отправить байт данных
-  nRF24L01SetRegister(0x17, 0x00);
-  nRF24L01SetRegister(0x00, 0x00);
-  nRF24L01SetRegister(0x20, 0x0A | nRF24L01_conf.config);
-  //NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN); 
+  //nRF24L01SetRegister(0x20, 0x0A | nRF24L01_conf.config);
   nRF24L01SendActivate(0, 0);
 }
 
@@ -252,7 +233,7 @@ int main(void) {
   if (nRF24L01_conf.config & 1) {
     NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
   } else {
-    timer1PutMainTask(&timerTask, 0);
+    //timer1PutMainTask(&timerTask, 0);
   }
  
   NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);

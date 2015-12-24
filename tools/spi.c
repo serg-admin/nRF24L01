@@ -60,9 +60,9 @@ ISR (SPI_STC_vect) {
       if (spiData.pos < spiData.reciveSize) {
         SPDR = 0;
       } else {
+        spiSetFree();
         if (spiData.callBack)
           spiData.callBack(spiData.reciveBuff, spiData.pos);
-        spiSetFree();
       }
     }
   }

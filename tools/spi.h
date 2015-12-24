@@ -6,6 +6,8 @@
 #include <avr/sleep.h>
 #include "uart_async.h"
 
+typedef  uint8_t nRF24L01CallBack(uint8_t* buf, uint8_t size);
+
 #define PORT_SPI PORTB
 #define DDR_SPI DDRB
 
