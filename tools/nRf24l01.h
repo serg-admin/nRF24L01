@@ -26,22 +26,31 @@
 #define nRF24L01_DOWN NRF24L01_CE_PORT &= ~(_BV(NRF24L01_CE_PIN))
 #define nRF24L01_SET_SEND  nRF24L01SetRegister(0x20, 0x01 | nRF24L01_conf.config);
 #define nRF24L01_SET_RECIVE  nRF24L01SetRegister(0x20, 0xFE & nRF24L01_conf.config);
-#define NRF24L01_EEPROM 0x0000 //Адрес конфигурации ресивера
+#define NRF24L01_EEPROM 0x0000 //Адрес конфигурации ресивера в eeprom
+
+uint8_t nRF24L01State; // Регистр состояния для обработки прерывания ресивера IRQ
+
+struct rec_nRF24L01_data {
+  uint8_t dataSize;
+  uint8_t type;
+  uint8_t data[16];
+} nRF24L01Data;
 
 struct rec_nRF24L01_conf{
-  uint8_t config; // адресс 0x00
-  uint8_t en_aa; // адресс 0x01
-  uint8_t en_rxaddr; // адресс 0x02
-  uint8_t setup_aw; // адресс 0x03
-  uint8_t setup_retr; // адресс 0x04
-  uint8_t rf_ch; // адресс 0x05
-  uint8_t rf_setup; // адресс 0x06
-  uint8_t rx_addr_p0[3]; // адресс 0x0A
-  uint8_t rx_addr_p1[3]; // адресс 0x0A
-  uint8_t tx_addr[3]; // адресс 0x10
-  uint8_t rx_pw_p0; // адресс 0x11
-  uint8_t rx_pw_p1; // адресс 0x12
+  uint8_t config; // регистр 0x00
+  uint8_t en_aa; // регистр 0x01
+  uint8_t en_rxaddr; // регистр 0x02
+  uint8_t setup_aw; // регистр 0x03
+  uint8_t setup_retr; // регистр 0x04
+  uint8_t rf_ch; // регистр 0x05
+  uint8_t rf_setup; // регистр 0x06
+  uint8_t rx_addr_p0[3]; // регистр 0x0A
+  uint8_t rx_addr_p1[3]; // регистр 0x0B
+  uint8_t tx_addr[3]; // регистр 0x10
+  uint8_t rx_pw_p0; // регистр 0x11
+  uint8_t rx_pw_p1; // регистр 0x12
 } nRF24L01_conf;
+
 
 void nRF24L01SetRegister(uint8_t reg, uint8_t b);
 
