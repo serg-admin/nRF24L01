@@ -2,7 +2,7 @@
 //#include <util/delay.h>
 #include <avr/sleep.h>
 #include <avr/io.h>
-#include "tools/timer16.h"
+//#include "tools/timer16.h"
 #include "tools/uart_async.h"
 #include "tools/error.h"
 #include "tools/pcint.h"
@@ -51,31 +51,83 @@ uint8_t writelnHEX(uint8_t* buf, uint8_t size) {
 }
 
 uint8_t nRF24L01Status(uint8_t* buff, uint8_t size) {
+  //_uart_writeHEX(nRF24L01State[0]); uart_writelnHEX(buff[0]);
   struct rec_spi_data *data;
-  switch (nRF24L01State) {
+  switch (nRF24L01State[0]) {
+    case 0x17 : // Был запрошен статут буферов (обработка состояния буфера не реализована)
+      // Переход в состояние приема
+      nRF24L01_DOWN;
+      data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+      data->sendBuff = nRF24L01State;
+      data->sendBuff[0] = 0x20;
+      data->sendBuff[1] = 0x0B;
+      data->sendSize = 2;
+      data->callBack = &nRF24L01Status;
+      spiTransmit(2);
+      break;
+    case 0x20 : // Изменение статуса ресивера вкл/вкл/прием/передача
+      if (buff[0] & 0xF0) nRF24L01SetRegister(0x27, 0xFF); // Сброс прерываний
+      nRF24L01_UP; // Включаем рессивер
+      break;
     case 0x61 : // Был запрошен буфер приема (RX)
       // Обработка полученного блока данных - структура блока:
       // 0x00 - Размер значащих данных (включая байт 0x00).
       // 0x01 - Функция обработки данных.
       // .... - Данные.
-      for(nRF24L01Data.dataSize = 0; nRF24L01Data.dataSize < buff[0] ;nRF24L01Data.dataSize++)
-        ((uint8_t*)&nRF24L01Data)[nRF24L01Data.dataSize] = buff[nRF24L01Data.dataSize];
-      nRF24L01Data.dataSize--;   nRF24L01Data.dataSize--;
+      for(nRF24L01Data.dataSize = 1; nRF24L01Data.dataSize < buff[1] ;nRF24L01Data.dataSize++)
+        ((uint8_t*)&nRF24L01Data)[nRF24L01Data.dataSize] = buff[nRF24L01Data.dataSize + 1];
+      nRF24L01Data.dataSize-=2;
       // Проверка сотояния буферов
       data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-      data->sendBuff = &nRF24L01State;
+      data->sendBuff = nRF24L01State;
       data->sendBuff[0] = 0x17;
+      data->sendSize = 1;
+      data->callBack = &nRF24L01Status;
       spiTransmit(2);
       sei();
-      case (nRF24L01Status) 
+      switch (nRF24L01Data.type) {
+        case 0 : // Вывести как строку в UART
+          uart_writeln((char *)nRF24L01Data.data);
+          break;
+        case 1 : // Вывести как HEX в UART
+          uart_writelnHEXEx(nRF24L01Data.data, nRF24L01Data.dataSize);
+          break;
+      }
+      break;
+    case 0xA0 : // Данные были помещены в RX буфер
+      nRF24L01_DOWN;
+      data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+      data->sendBuff = nRF24L01State;
+      data->sendBuff[0] = 0x20;
+      data->sendBuff[1] = 0x0A;
+      data->sendSize = 2;
+      data->callBack = &nRF24L01Status;
+      spiTransmit(1);
       break;
     case 0xFF : // Был запрошен регистр статуса (вход для IRQ)
       if (buff[0] & 0b01000000) { // Есть данные в буфере приема (RX).
         data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-        data->sendBuff = &nRF24L01State;
+        data->sendBuff = nRF24L01State;
         data->sendBuff[0] = 0x61;
-        spiTransmit(nRF24L01_conf.rx_pw_p1);
+        data->sendSize = 1;
+        data->callBack = &nRF24L01Status;
+        spiTransmit(NRF24L01_LEN_OF_DATA + 1); // Первым байтом вернется регистр статуса
+        break;
       }
+      
+      if (buff[0] & 0b00000010) { // Данные успешно преданы
+        data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+        data->sendBuff = nRF24L01State;
+        data->sendBuff[0] = 0x17;
+        data->sendSize = 1;
+        data->callBack = &nRF24L01Status;
+        spiTransmit(2);
+        break;
+      }
+      
+      uart_write("reg07=");
+      uart_writelnHEX(buff[0]);
+      //nRF24L01SetRegister(0x2F, 0xFF); // Сброс статусного регистра (прерываний).
       break;
   }
   return 0;
@@ -83,22 +135,32 @@ uint8_t nRF24L01Status(uint8_t* buff, uint8_t size) {
 
 void nRF24L01IRQ(void) {
   struct rec_spi_data *data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
-  data->sendBuff = &nRF24L01State;
+  data->sendBuff = nRF24L01State;
   data->sendBuff[0] = 0xFF; // Пустая команда для получения статуса
-  data->reciveSize = 1;
+  data->sendSize = 1;
   data->callBack = &nRF24L01Status;
   spiTransmit(1);
 }
-
+/*
 uint8_t nRF24L01Sending(uint8_t* buff, uint8_t size) {
   // Преводим в режим передачи
-  nRF24L01_SET_SEND;
+  uart_writeln("sending");
+  struct rec_spi_data *data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  data->sendBuff = nRF24L01State;
+  data->sendBuff[0] = 0x20;
+  data->sendBuff[1] = 0x0A;
+  data->sendBuff[2] = 0x00;
+  data->sendSize = 3;
+  data->callBack = &nRF24L01Status;
+  spiTransmit(4); //  Дополнительные байты как пауза для установки битов в ресивире
+  
   return 0;
 }
-
+*/
 void nRF24L01Send(uint8_t* buff, uint8_t size) {
   uint8_t i;
   struct rec_spi_data *data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN);
+  nRF24L01_DOWN;
   // Команда отправить данные
   data->reciveBuff[0] = 0xA0;
   // Фактический размер значащих данных
@@ -107,14 +169,29 @@ void nRF24L01Send(uint8_t* buff, uint8_t size) {
     data->sendBuff[i+2] = buff[i];
   }
   // Размер окна данных в пакете
-  data->sendSize = nRF24L01_conf.rx_pw_p0;
-  data->callBack = &nRF24L01Sending;
+  data->sendSize = NRF24L01_LEN_OF_DATA;
+  data->callBack = &nRF24L01Status;
   spiTransmit(0);
 }
 
+
+
 void nRF24L01SendStr(char *str) {  
-//  struct rec_spi_data *data; 
-  
+  struct rec_spi_data *data = spiGetBus(&NRF24L01_SCN_PORT, NRF24L01_SCN_PIN); 
+  nRF24L01_DOWN;
+  data->sendBuff = nRF24L01State;
+  data->sendBuff[0] = 0xA0; // Поместить данные буфер передачи.
+  data->sendSize = 3; // Первые два байта описание блока.
+  while(str[data->sendSize - 3]) {
+    data->sendBuff[data->sendSize] = str[data->sendSize - 3];
+    data->sendSize++;
+  }
+  data->sendBuff[data->sendSize++] = 0; // Нуль терминатная строка.
+  data->sendBuff[1] = data->sendSize - 1;
+  data->sendSize = NRF24L01_LEN_OF_DATA + 1; // В настройках трансивера статичный размер пакета
+  data->sendBuff[2] = 0; // Вывести на приемнике в UART как строку.
+  data->callBack = &nRF24L01Status; // Активация передачи.
+  spiTransmit(0);
 }
 
 /**
@@ -157,6 +234,18 @@ void commands_reciver(char* str) {
     uart_writeln("ok");
     return;
   } 
+  
+  if ((str[0] == 'I') && (str[1] == 'N') && (str[2] == 'B')) {
+    uart_writelnHEX(PORTB);
+    return;
+  }
+  
+  if ((str[0] == 'O') && (str[1] == 'U') && (str[2] == 'T') && (str[3] == 'B')) {
+    parse_HEX_string(str + 4, tmp_arr);
+    PORTB = tmp_arr[0];
+    return;
+  }
+  
   if ((str[0] == 'R') && (str[1] == 'O') && (str[2] == 'M') && (str[3] == 'R')) {
     parse_HEX_string(str + 4, tmp_arr);
     uart_writelnHEX(EEPROM_read(tmp_arr[0] * 0xFF + tmp_arr[1]));
@@ -180,15 +269,14 @@ void nRF24L01_init(void) {
   struct rec_spi_data *data;
   nRF24L01LoadConf(&nRF24L01_conf);
   
-  nRF24L01SetRegister(0x20, nRF24L01_conf.config);
   nRF24L01SetRegister(0x21, nRF24L01_conf.en_aa);
   nRF24L01SetRegister(0x22, nRF24L01_conf.en_rxaddr);
   nRF24L01SetRegister(0x23, nRF24L01_conf.setup_aw);
   nRF24L01SetRegister(0x24, nRF24L01_conf.setup_retr);
   nRF24L01SetRegister(0x25, nRF24L01_conf.rf_ch);
   nRF24L01SetRegister(0x26, nRF24L01_conf.rf_setup);
-  nRF24L01SetRegister(0x31, nRF24L01_conf.rx_pw_p0);
-  nRF24L01SetRegister(0x32, nRF24L01_conf.rx_pw_p1);
+  nRF24L01SetRegister(0x31, NRF24L01_LEN_OF_DATA);
+  nRF24L01SetRegister(0x32, NRF24L01_LEN_OF_DATA);
 
   // Установка адреса для дефолтного канала приема 
   // RX_ADDR_P0 - Receive address data pipe 0. 5 Bytes maximum 
@@ -224,7 +312,7 @@ void nRF24L01_init(void) {
   spiTransmit(0);
     
   // Включаем трансивер
-  nRF24L01SetRegister(0x20, 0x02 | nRF24L01_conf.config);
+  nRF24L01SetRegister(0x20, 0x0B);
   nRF24L01_UP;
 }
 /*
@@ -238,9 +326,8 @@ void timerTask(uint8_t *params) {
 
 int main(void) {
   uint8_t spi_read_buff[32];
-  timer_init();
+//  timer_init();
   uart_async_init();
-  pcint_init(0);
   uart_readln(&commands_reciver);
   sei();
   uart_writeln("Start");
@@ -248,15 +335,10 @@ int main(void) {
   NRF24L01_SCN_DDR |= _BV(NRF24L01_SCN_DDN);
   NRF24L01_SCN_PORT |= _BV(NRF24L01_SCN_PIN);
   NRF24L01_CE_DDR |= _BV(NRF24L01_CE_DDN);
-  NRF24L01_CE_PORT &= ~(_BV(NRF24L01_CE_PIN));
   nRF24L01_init();
-  if (nRF24L01_conf.config & 1) {
-    NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
-  } else {
-    //timer1PutMainTask(&timerTask, 0);
-  }
- 
   NRF24L01_CE_PORT |= _BV(NRF24L01_CE_PIN);
+  pcint_init(0);
+  pcintCallBack = &nRF24L01IRQ;
   while(1) {
     sleep_mode();
   }

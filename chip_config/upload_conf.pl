@@ -10,8 +10,8 @@ $addr = 0x0000; # Адрес начала блока конфигурации
 $cfg = $ARGV[0];
 
 print "$cfg\n";
-print `stty 38400 -F /dev/ttyUSB1`; # Устанавливаем параметры порта
-open(PORT, ">/dev/ttyUSB1"); # Создаем поток в порт для записи
+print `stty 38400 -F /dev/ttyUSB2`; # Устанавливаем параметры порта
+open(PORT, ">/dev/ttyUSB2"); # Создаем поток в порт для записи
 open DB, "<$cfg"; # Файл с конфигурацией
 
 while(<DB>) {

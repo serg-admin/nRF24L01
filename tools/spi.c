@@ -20,7 +20,6 @@ struct rec_spi_data* spiGetBus(volatile uint8_t *port, uint8_t pin) {
 void spiSetFree(void) {
   *devSSport |= _BV(devSSpin);
   spiData.status = SPI_STATE_FREE;
-  spiData.callBack = 0;
   spiData.sendBuff = spiData.reciveBuff;
 }
 
@@ -44,8 +43,6 @@ void spi_init(uint8_t *buff) {
 }
 
 ISR (SPI_STC_vect) {
-//void SIG_SPI( void ) __attribute__ ( ( signal, naked ) );
-//void SPI_STC_vect( void ) {
   // Збрасываем флаг прерывания
   uint8_t tmp = SPDR;
   cli();
@@ -58,11 +55,15 @@ ISR (SPI_STC_vect) {
       // Размер принимаемых данных больше передаваемых
       // Для генерации тактов SCK передаем данные
       if (spiData.pos < spiData.reciveSize) {
-        SPDR = 0;
+        SPDR = 1;
+        spiData.pos++;
       } else {
         spiSetFree();
-        if (spiData.callBack)
+        if (spiData.callBack) {
           spiData.callBack(spiData.reciveBuff, spiData.pos);
+        if (spiData.status == SPI_STATE_FREE) // Возможно CallBack продолжил передачу
+          spiData.callBack = 0;
+        }
       }
     }
   }
