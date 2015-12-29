@@ -2,7 +2,7 @@
 //#include <util/delay.h>
 #include <avr/sleep.h>
 #include <avr/io.h>
-//#include "tools/timer16.h"
+#include "tools/timer16.h"
 #include "tools/uart_async.h"
 #include "tools/error.h"
 #include "tools/pcint.h"
@@ -326,7 +326,7 @@ void timerTask(uint8_t *params) {
 
 int main(void) {
   uint8_t spi_read_buff[32];
-//  timer_init();
+  timer_init();
   uart_async_init();
   uart_readln(&commands_reciver);
   sei();

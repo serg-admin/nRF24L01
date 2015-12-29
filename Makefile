@@ -1,6 +1,7 @@
 programm     = main
-mcu          = atmega328p
+#mcu          = atmega328p
 #mcu          = atmega128
+mcu          = atmega8515
 
 optimize     = -Os
 
@@ -41,6 +42,8 @@ clean:
 pro_mini: $(programm).hex
 	avrdude -c arduino -F -P /dev/ttyUSB0 -p $(mcu) -b 57600  -U flash:w:$(programm).hex:i
 lc_studio: $(programm).hex
+	avrdude -c stk500 -F -P /dev/ttyS1 -p $(mcu) -U flash:w:$(programm).hex:i
+atmega8515: $(programm).hex
 	avrdude -c stk500 -F -P /dev/ttyS1 -p $(mcu) -U flash:w:$(programm).hex:i
 leonardo: $(programm).hex
 	avrdude -c avr109 -F -P /dev/ttyACM1 -p m32u4 -U flash:w:$(programm).hex:i

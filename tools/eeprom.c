@@ -9,6 +9,8 @@ uint8_t EEPROM_write(unsigned int uiAddress, unsigned char ucData) {
   /*  Wait for completion of previous write  */
 #if defined (__AVR_ATmega128__)
   if (EECR & _BV(EEWE)) return 1;
+#elif defined (__AVR_ATmega8515__)
+  if (EECR & _BV(EEWE)) return 1;
 #else
   if (EECR & _BV(EEPE)) return 1;
 #endif
@@ -17,6 +19,10 @@ uint8_t EEPROM_write(unsigned int uiAddress, unsigned char ucData) {
   EEDR = ucData;
   /* Write logical one to EEMPE */
 #if defined (__AVR_ATmega128__)
+  EECR |= _BV(EEMWE);
+  /* Start eeprom write by setting EEPE */
+  EECR |= _BV(EEWE);
+#elif defined (__AVR_ATmega8515__)
   EECR |= _BV(EEMWE);
   /* Start eeprom write by setting EEPE */
   EECR |= _BV(EEWE);
@@ -36,6 +42,8 @@ uint8_t EEPROM_write(unsigned int uiAddress, unsigned char ucData) {
 uint8_t EEPROM_read(unsigned int uiAddress) {
   /* Wait for completion of previous write */
 #if defined (__AVR_ATmega128__)
+  if (EECR & _BV(EEWE)) return 1;
+#elif defined (__AVR_ATmega8515__)
   if (EECR & _BV(EEWE)) return 1;
 #else
   if (EECR & _BV(EEPE)) return 1;

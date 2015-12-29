@@ -12,6 +12,8 @@
 
 #if defined (__AVR_ATmega128__)
 #  define FOSC 8000000 // Clock Speed
+#elif defined (__AVR_ATmega8515__)
+#  define FOSC 8000000 // Clock Speed
 #else
 #  define FOSC 16000000 // Clock Speed
 #endif

@@ -16,6 +16,11 @@ typedef  uint8_t nRF24L01CallBack(uint8_t* buf, uint8_t size);
 #  define DD_MOSI DDB2
 #  define DD_MISO DDB3
 #  define DD_SCK  DDB1
+#elif defined (__AVR_ATmega8515__)
+#  define DD_SS   DDB4
+#  define DD_MOSI DDB5
+#  define DD_MISO DDB6
+#  define DD_SCK  DDB7
 #else
 #  define DD_SS   DDB2
 #  define DD_MOSI DDB3

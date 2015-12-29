@@ -2,6 +2,21 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include "uart_async.h"
+#if defined (__AVR_ATmega8515__)
+#  define UDR0 UDR
+#  define UCSR0B UCSRB
+#  define UDRIE0 UDRIE
+#  define UCSR0A UCSRA
+#  define RXC0 RXC
+#  define TXEN0 TXEN
+#  define RXEN0 RXEN
+#  define RXCIE0 RXCIE
+#  define UCSR0C UCSRC
+#  define UCSZ01 UCSZ1
+#  define UCSZ00 UCSZ0
+#  define UDRE0 UDRE
+#endif
+
 
 unsigned char uart_buf[UART0_BUFER_SIZE];
 char uart_read_buf[UART0_READ_BUFER_SIZE];
@@ -29,7 +44,6 @@ ISR (USART0_RX_vect) {
 #else
 ISR (USART_RX_vect) {
 #endif
-  //PORTB ^= _BV(PINB5);
   if (uart_readln_callback == 0) return;
   cli();
   while (UCSR0A & _BV(RXC0)) {
@@ -52,16 +66,20 @@ void uart_readln(void (*callback)(char*)) {
 void uart_async_init(void) {
    uart_wPos = 0;
    uart_rPos = 0;
-   // Разрешить прием, передачу через порт.
-   UCSR0B = _BV(TXEN0) | _BV(RXEN0) | _BV(RXCIE0) ;
    // Устанавливаем скорость порта.
 #if defined (__AVR_ATmega128__)   
    UBRR0H = (unsigned char)(MYBDIV>>8);
    UBRR0L = (unsigned char)MYBDIV;
+#elif defined (__AVR_ATmega8515__)
+   UBRRH = (unsigned char)(MYBDIV>>8);
+   UBRRL = (unsigned char)MYBDIV;
 #else
    UBRR0 = MYBDIV;
 #endif   
-   UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
+   //UCSR0C |= _BV(UCSZ01);
+   //UCSR0C |= _BV(UCSZ00);
+// Разрешить прием, передачу через порт.
+   UCSR0B = _BV(TXEN0) | _BV(RXEN0) | _BV(RXCIE0) ;
 }
 
 // Возвращает количество свободных байт в очереди USART.
